@@ -1,6 +1,7 @@
+
 # Amazon Q CLI (amazon-q-cli)
 
-Install [Amazon Q CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing.html) - AWS Q Developer CLI tool
+Installs Amazon Q CLI for AWS development
 
 ## Example Usage
 
@@ -10,12 +11,10 @@ Install [Amazon Q CLI](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/
 }
 ```
 
-## Options
 
-| Options Id | Description | Type | Default Value |
-|-----|-----|-----|-----|
-| version | Select or enter a Amazon Q CLI version | string | latest |
 
-## Reference
 
-- [Amazon Q CLI Documentation](https://docs.aws.amazon.com/amazonq/latest/qdeveloper-ug/command-line-installing.html)
+
+---
+
+_Note: This file was auto-generated from the [devcontainer-feature.json](https://github.com/jajera/features/blob/main/src/amazon-q-cli/devcontainer-feature.json).  Add additional notes to a `NOTES.md`._
