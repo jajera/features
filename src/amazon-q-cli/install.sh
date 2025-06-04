@@ -162,6 +162,25 @@ for binary in ./q/bin/*; do
     fi
 done
 
+# Additional setup for non-root users: create necessary directories and symlinks
+if [ "$(id -u)" -ne 0 ]; then
+    USER_HOME="$HOME"
+    USER_NAME="$(id -un)"
+
+    mkdir -p "$USER_HOME/.local/bin"
+    mkdir -p "$USER_HOME/.local/share/amazon-q"
+    mkdir -p "$USER_HOME/.amazon-q"
+
+    # Create symlink for qchat if not already present
+    if [ ! -L "$USER_HOME/.local/bin/qchat" ]; then
+        ln -sf /usr/local/bin/qchat "$USER_HOME/.local/bin/qchat"
+    fi
+
+    chown -R "$USER_NAME":"$USER_NAME" "$USER_HOME/.local/bin"
+    chown -R "$USER_NAME":"$USER_NAME" "$USER_HOME/.local/share/amazon-q"
+    chown -R "$USER_NAME":"$USER_NAME" "$USER_HOME/.amazon-q"
+fi
+
 # For testing purposes, ensure Amazon Q CLI commands are visible in /usr/local/bin
 # This helps with test visibility across different user contexts
 if [ "$(id -u)" -ne 0 ]; then
