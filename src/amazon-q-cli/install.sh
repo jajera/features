@@ -107,10 +107,16 @@ if [ "$(id -u)" -eq 0 ]; then
     INSTALL_DIR="/usr/local/bin"
     COMPLETION_DIR="/etc/bash_completion.d"
     BASHRC_FILE="/etc/bash.bashrc"
+    PROFILE_FILE="/etc/profile"
+    ZSHRC_FILE="/etc/zsh/zshrc"
+    ZPROFILE_FILE="/etc/zsh/zprofile"
 else
     INSTALL_DIR="$HOME/.local/bin"
     COMPLETION_DIR="$HOME/.bash_completion.d"
     BASHRC_FILE="$HOME/.bashrc"
+    PROFILE_FILE="$HOME/.profile"
+    ZSHRC_FILE="$HOME/.zshrc"
+    ZPROFILE_FILE="$HOME/.zprofile"
     # Ensure local bin directory exists and is in PATH
     mkdir -p "$INSTALL_DIR"
     if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
@@ -213,6 +219,41 @@ else
     # User-specific completion
     COMPLETION_LINE="source \$HOME/.bash_completion.d/q"
     grep -qxF "$COMPLETION_LINE" "$BASHRC_FILE" 2>/dev/null || echo "$COMPLETION_LINE" >>"$BASHRC_FILE"
+fi
+
+# Setup shell integrations
+echo "Setting up shell integrations..."
+if command -v q >/dev/null 2>&1; then
+    Q_CMD="q"
+elif [ -f "$INSTALL_DIR/q" ]; then
+    Q_CMD="$INSTALL_DIR/q"
+else
+    Q_CMD=""
+fi
+
+if [ -n "$Q_CMD" ]; then
+    # Install shell integrations
+    echo "Installing shell integrations..."
+    "$Q_CMD" integrations install dotfiles
+
+    # Ensure Q_TERM is set in the environment
+    if [ "$(id -u)" -eq 0 ]; then
+        # System-wide environment
+        if ! grep -q 'export Q_TERM=' "$PROFILE_FILE" 2>/dev/null; then
+            echo 'export Q_TERM=1' >>"$PROFILE_FILE"
+        fi
+    else
+        # User-specific environment
+        if ! grep -q 'export Q_TERM=' "$PROFILE_FILE" 2>/dev/null; then
+            echo 'export Q_TERM=1' >>"$PROFILE_FILE"
+        fi
+        if ! grep -q 'export Q_TERM=' "$BASHRC_FILE" 2>/dev/null; then
+            echo 'export Q_TERM=1' >>"$BASHRC_FILE"
+        fi
+    fi
+
+    # Set Q_TERM in current session
+    export Q_TERM=1
 fi
 
 echo "✅ Amazon Q CLI installation complete!"
