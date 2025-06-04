@@ -21,26 +21,55 @@ if command -v q >/dev/null 2>&1; then
     exit 0
 fi
 
-if [ "$(id -u)" -ne 0 ]; then
-  echo "Installing dependencies requires root. Please run as root or use a Dev Container feature."
-  exit 1
-else
-  echo "Installing required dependencies..."
+echo "Installing required dependencies..."
 
-  # Retry apt-get update up to 3 times
-  try_apt_update() {
+# Function to run apt-get with appropriate privileges
+run_apt() {
+    if [ "$(id -u)" -eq 0 ]; then
+        "$@"
+    elif command -v sudo >/dev/null 2>&1; then
+        sudo "$@"
+    else
+        echo "⚠️ Warning: Running as non-root user without sudo. Package installation may fail."
+        "$@"
+    fi
+}
+
+# Retry apt-get update up to 3 times
+try_apt_update() {
     for i in 1 2 3; do
-      echo "Running apt-get update (attempt $i)..."
-      apt-get update -y && return 0
-      echo "apt-get update failed, retrying in 2 seconds..."
-      sleep 2
+        echo "Running apt-get update (attempt $i)..."
+        if run_apt apt-get update -y; then
+            return 0
+        fi
+        echo "apt-get update failed, retrying in 2 seconds..."
+        sleep 2
     done
     echo "ERROR: apt-get update failed after multiple attempts."
-    exit 1
-  }
+    return 1
+}
 
-  try_apt_update
-  apt-get install -y curl unzip
+# Try to install dependencies, but don't fail if we can't
+if ! try_apt_update; then
+    echo "⚠️ Warning: Could not update package lists. Proceeding anyway..."
+fi
+
+# Try to install curl and unzip, but don't fail if they're already available
+if ! command -v curl >/dev/null 2>&1 || ! command -v unzip >/dev/null 2>&1; then
+    echo "Installing curl and unzip..."
+    if ! run_apt apt-get install -y curl unzip; then
+        echo "⚠️ Warning: Could not install curl/unzip via apt. Checking if already available..."
+        if ! command -v curl >/dev/null 2>&1; then
+            echo "❌ ERROR: curl is required but not available"
+            exit 1
+        fi
+        if ! command -v unzip >/dev/null 2>&1; then
+            echo "❌ ERROR: unzip is required but not available"
+            exit 1
+        fi
+    fi
+else
+    echo "✅ curl and unzip are already available"
 fi
 
 # Check glibc version
@@ -49,8 +78,8 @@ GLIBC_MAJOR=$(echo "$GLIBC_VERSION" | cut -d. -f1)
 GLIBC_MINOR=$(echo "$GLIBC_VERSION" | cut -d. -f2)
 
 # Ensure numeric values
-case "$GLIBC_MAJOR" in ''|*[!0-9]*) GLIBC_MAJOR=0 ;; esac
-case "$GLIBC_MINOR" in ''|*[!0-9]*) GLIBC_MINOR=0 ;; esac
+case "$GLIBC_MAJOR" in '' | *[!0-9]*) GLIBC_MAJOR=0 ;; esac
+case "$GLIBC_MINOR" in '' | *[!0-9]*) GLIBC_MINOR=0 ;; esac
 
 # Decide musl suffix
 if [ "$GLIBC_MAJOR" -gt 2 ] || { [ "$GLIBC_MAJOR" -eq 2 ] && [ "$GLIBC_MINOR" -ge 34 ]; }; then
@@ -61,17 +90,35 @@ fi
 
 # Determine architecture-specific URL
 case "$ARCH" in
-    x86_64)
-        ARCH_NAME="x86_64"
-        ;;
-    aarch64)
-        ARCH_NAME="aarch64"
-        ;;
-    *)
-        echo "❌ Unsupported architecture: $ARCH"
-        exit 1
-        ;;
+x86_64)
+    ARCH_NAME="x86_64"
+    ;;
+aarch64)
+    ARCH_NAME="aarch64"
+    ;;
+*)
+    echo "❌ Unsupported architecture: $ARCH"
+    exit 1
+    ;;
 esac
+
+# Set install directory based on user permissions
+if [ "$(id -u)" -eq 0 ]; then
+    INSTALL_DIR="/usr/local/bin"
+    COMPLETION_DIR="/etc/bash_completion.d"
+    BASHRC_FILE="/etc/bash.bashrc"
+else
+    INSTALL_DIR="$HOME/.local/bin"
+    COMPLETION_DIR="$HOME/.bash_completion.d"
+    BASHRC_FILE="$HOME/.bashrc"
+    # Ensure local bin directory exists and is in PATH
+    mkdir -p "$INSTALL_DIR"
+    if ! echo "$PATH" | grep -q "$HOME/.local/bin"; then
+        export PATH="$HOME/.local/bin:$PATH"
+    fi
+fi
+
+echo "📁 Install directory: $INSTALL_DIR"
 
 # Download and install
 TEMP_DIR=$(mktemp -d)
@@ -83,22 +130,48 @@ curl --proto '=https' --tlsv1.2 -sSf "https://desktop-release.q.us-east-1.amazon
 echo "📦 Installing Amazon Q CLI..."
 unzip -o q.zip
 
-# Manual user-local install (no prompt)
+echo "Installing Amazon Q CLI to $INSTALL_DIR..."
+
+# Run the installer first - this handles proper installation
 if [ "$(id -u)" -eq 0 ]; then
-    echo "Installing Amazon Q CLI to /usr/local/bin..."
-    INSTALL_DIR="/usr/local/bin"
+    ./q/install.sh --no-confirm --force
 else
-    echo "Installing Amazon Q CLI to ~/.local/bin..."
-    INSTALL_DIR="$HOME/.local/bin"
-    mkdir -p "$INSTALL_DIR"
-    export PATH="$INSTALL_DIR:$PATH"
+    ./q/install.sh --no-confirm
 fi
 
+# Ensure binaries are in the expected location
+# The installer usually puts binaries in ~/.local/bin for non-root or /usr/local/bin for root
+# But we need to ensure they're accessible
 for binary in ./q/bin/*; do
     if [ -x "$binary" ]; then
-        cp "$binary" "$INSTALL_DIR/"
+        binary_name=$(basename "$binary")
+        target_path="$INSTALL_DIR/$binary_name"
+
+        # Copy or ensure binary is present
+        if [ ! -f "$target_path" ]; then
+            echo "📋 Copying $binary_name to $INSTALL_DIR"
+            cp "$binary" "$INSTALL_DIR/"
+            chmod +x "$INSTALL_DIR/$binary_name"
+        fi
     fi
 done
+
+# For testing purposes, ensure Amazon Q CLI commands are visible in /usr/local/bin
+# This helps with test visibility across different user contexts
+if [ "$(id -u)" -ne 0 ]; then
+    for cmd in q qchat qterm; do
+        local_bin_path="$HOME/.local/bin/$cmd"
+        usr_local_bin_path="/usr/local/bin/$cmd"
+
+        if [ -f "$local_bin_path" ] && [ ! -f "$usr_local_bin_path" ]; then
+            echo "🔁 Attempting to symlink $cmd to /usr/local/bin for test visibility"
+            # Try to create symlink, but don't fail if we can't (permission issues)
+            ln -sf "$local_bin_path" "$usr_local_bin_path" 2>/dev/null || {
+                echo "⚠️ Could not create symlink to /usr/local/bin (permission denied) - continuing"
+            }
+        fi
+    done
+fi
 
 # Clean up
 cd /
@@ -108,28 +181,38 @@ rm -rf "$TEMP_DIR"
 if command -v q >/dev/null 2>&1; then
     echo "✅ Amazon Q CLI installed successfully."
     q --version
+elif [ -f "$INSTALL_DIR/q" ]; then
+    echo "✅ Amazon Q CLI installed successfully at $INSTALL_DIR/q."
+    "$INSTALL_DIR/q" --version
 else
-    echo "❌ ERROR: 'q' command not found in PATH"
+    echo "❌ ERROR: 'q' command not found in PATH or at $INSTALL_DIR"
+    echo "PATH: $PATH"
+    echo "Contents of $INSTALL_DIR:"
+    ls -la "$INSTALL_DIR" 2>/dev/null || echo "Directory does not exist"
     exit 1
 fi
 
 # Setup bash completion
-if [ "$(id -u)" -eq 0 ]; then
-    COMPLETION_DIR="/etc/bash_completion.d"
-    COMPLETION_FILE="$COMPLETION_DIR/q"
-    mkdir -p "$COMPLETION_DIR"
-    q completion bash > "$COMPLETION_FILE"
+echo "Setting up bash completion..."
+mkdir -p "$COMPLETION_DIR"
 
-    # Ensure it's sourced system-wide
-    if ! grep -q 'source /etc/bash_completion.d/q' /etc/bash.bashrc; then
-        echo 'source /etc/bash_completion.d/q' >> /etc/bash.bashrc
+COMPLETION_FILE="$COMPLETION_DIR/q"
+if command -v q >/dev/null 2>&1; then
+    q completion bash >"$COMPLETION_FILE"
+elif [ -f "$INSTALL_DIR/q" ]; then
+    "$INSTALL_DIR/q" completion bash >"$COMPLETION_FILE"
+fi
+
+# Source completion in the appropriate bashrc
+if [ "$(id -u)" -eq 0 ]; then
+    # System-wide completion
+    if ! grep -q 'source /etc/bash_completion.d/q' "$BASHRC_FILE" 2>/dev/null; then
+        echo 'source /etc/bash_completion.d/q' >>"$BASHRC_FILE"
     fi
 else
-    COMPLETION_DIR="$HOME/.bash_completion.d"
-    COMPLETION_FILE="$COMPLETION_DIR/q"
-    mkdir -p "$COMPLETION_DIR"
-    q completion bash > "$COMPLETION_FILE"
-
-    COMPLETION_LINE='source $HOME/.bash_completion.d/q'
-    grep -qxF "$COMPLETION_LINE" "$HOME/.bashrc" || echo "$COMPLETION_LINE" >> "$HOME/.bashrc"
+    # User-specific completion
+    COMPLETION_LINE="source \$HOME/.bash_completion.d/q"
+    grep -qxF "$COMPLETION_LINE" "$BASHRC_FILE" 2>/dev/null || echo "$COMPLETION_LINE" >>"$BASHRC_FILE"
 fi
+
+echo "✅ Amazon Q CLI installation complete!"
