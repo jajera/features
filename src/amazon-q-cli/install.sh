@@ -162,23 +162,23 @@ for binary in ./q/bin/*; do
     fi
 done
 
-# Additional setup for non-root users: create necessary directories and symlinks
-if [ "$(id -u)" -ne 0 ]; then
-    USER_HOME="$HOME"
-    USER_NAME="$(id -un)"
+# System-wide: ensure /usr/local/bin/qchat exists and is executable
+if [ -f /usr/local/bin/qchat ]; then
+    chmod +x /usr/local/bin/qchat
+fi
 
-    mkdir -p "$USER_HOME/.local/bin"
-    mkdir -p "$USER_HOME/.local/share/amazon-q"
-    mkdir -p "$USER_HOME/.amazon-q"
-
-    # Create symlink for qchat if not already present
-    if [ ! -L "$USER_HOME/.local/bin/qchat" ]; then
-        ln -sf /usr/local/bin/qchat "$USER_HOME/.local/bin/qchat"
+# Create a profile.d script to ensure symlink for all users (only if root)
+if [ "$(id -u)" -eq 0 ]; then
+    cat <<'EOF' >/etc/profile.d/qchat-local-bin.sh
+#!/bin/sh
+if [ -n "$HOME" ] && [ -d "$HOME" ]; then
+    mkdir -p "$HOME/.local/bin"
+    if [ ! -L "$HOME/.local/bin/qchat" ] && [ -x /usr/local/bin/qchat ]; then
+        ln -sf /usr/local/bin/qchat "$HOME/.local/bin/qchat"
     fi
-
-    chown -R "$USER_NAME":"$USER_NAME" "$USER_HOME/.local/bin"
-    chown -R "$USER_NAME":"$USER_NAME" "$USER_HOME/.local/share/amazon-q"
-    chown -R "$USER_NAME":"$USER_NAME" "$USER_HOME/.amazon-q"
+fi
+EOF
+    chmod +x /etc/profile.d/qchat-local-bin.sh
 fi
 
 # For testing purposes, ensure Amazon Q CLI commands are visible in /usr/local/bin
