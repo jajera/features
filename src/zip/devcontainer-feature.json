@@ -1,0 +1,7 @@
+{
+    "name": "Zip Utility",
+    "id": "zip",
+    "version": "1.0.0",
+    "description": "Installs zip and unzip CLI tools for compression and extraction.",
+    "documentationURL": "https://linux.die.net/man/1/zip"
+}
