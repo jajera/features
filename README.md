@@ -5,12 +5,25 @@
 This repository contains following features:
 
 - [amazon-q-cli](./src/amazon-q-cli/README.md): Install Amazon Q CLI for AWS development
+- [zip](./src/zip/README.md): Installs zip and unzip CLI tools for compression and extraction
 
 ## Usage
 
 To use the features from this repository, add the desired features to devcontainer.json.
 
-This example uses amazon-q-cli feature on devcontainer:
+These examples show how to use features from this repository in a devcontainer:
+
+```jsonc
+{
+    "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
+    "features": {
+        "ghcr.io/jajera/features/amazon-q-cli:1": {},
+        "ghcr.io/jajera/features/zip:1": {}
+    }
+}
+```
+
+Or use individual features:
 
 ```jsonc
 {
@@ -29,7 +42,15 @@ Similar to the [`devcontainers/features`](https://github.com/devcontainers/featu
 ├── src
 │   ├── amazon-q-cli
 │   │   ├── devcontainer-feature.json
-│   │   └── install.sh
+│   │   ├── install.sh
+│   │   └── README.md
+│   ├── zip
+│   │   ├── devcontainer-feature.json
+│   │   ├── install.sh
+│   │   └── README.md
+├── test
+│   ├── amazon-q-cli
+│   └── zip
 ...
 ```
 
