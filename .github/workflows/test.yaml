@@ -13,6 +13,7 @@ jobs:
     strategy:
       matrix:
         features:
+          - ag
           - amazon-q-cli
           - zip
         baseImage:
@@ -34,6 +35,7 @@ jobs:
     strategy:
       matrix:
         features:
+          - ag
           - amazon-q-cli
           - zip
     steps:
