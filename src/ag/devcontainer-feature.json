@@ -1,0 +1,7 @@
+{
+    "name": "ag - The Silver Searcher",
+    "id": "ag",
+    "version": "1.0.0",
+    "description": "Installs ag (The Silver Searcher), a fast grep-like text search tool.",
+    "documentationURL": "https://github.com/ggreer/the_silver_searcher"
+}
