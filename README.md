@@ -4,6 +4,7 @@
 
 This repository contains following features:
 
+- [ag](./src/ag/README.md): Installs ag (The Silver Searcher), a fast grep-like text search tool
 - [amazon-q-cli](./src/amazon-q-cli/README.md): Install Amazon Q CLI for AWS development
 - [zip](./src/zip/README.md): Installs zip and unzip CLI tools for compression and extraction
 
@@ -17,6 +18,7 @@ These examples show how to use features from this repository in a devcontainer:
 {
     "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
     "features": {
+        "ghcr.io/jajera/features/ag:1": {},
         "ghcr.io/jajera/features/amazon-q-cli:1": {},
         "ghcr.io/jajera/features/zip:1": {}
     }
@@ -29,7 +31,7 @@ Or use individual features:
 {
     "image": "mcr.microsoft.com/devcontainers/base:ubuntu",
     "features": {
-        "ghcr.io/jajera/features/amazon-q-cli:1": {}
+        "ghcr.io/jajera/features/ag:1": {}
     }
 }
 ```
@@ -40,6 +42,10 @@ Similar to the [`devcontainers/features`](https://github.com/devcontainers/featu
 
 ```plaintext
 ├── src
+│   ├── ag
+│   │   ├── devcontainer-feature.json
+│   │   ├── install.sh
+│   │   └── README.md
 │   ├── amazon-q-cli
 │   │   ├── devcontainer-feature.json
 │   │   ├── install.sh
@@ -49,6 +55,7 @@ Similar to the [`devcontainers/features`](https://github.com/devcontainers/featu
 │   │   ├── install.sh
 │   │   └── README.md
 ├── test
+│   ├── ag
 │   ├── amazon-q-cli
 │   └── zip
 ...
