@@ -19,6 +19,10 @@ check "bq version" bash -c "bq version"
 check "gcloud config works" bash -c "gcloud config list --format=text"
 check "gcloud auth works" bash -c "gcloud auth list --format=text"
 
+# Test SDK root configuration (this was the main issue)
+check "gcloud sdk_root is configured" bash -c "gcloud info --format='value(installation.sdk_root)' | grep -q ."
+check "gcloud components list works" bash -c "gcloud components list --format=text"
+
 # Check if completion files are installed
 if test -f /etc/bash_completion.d/gcloud; then
     check "bash completion installed system-wide" echo "Bash completion found at /etc/bash_completion.d/gcloud"

@@ -130,43 +130,74 @@ fi
 
 echo "📁 Install directory: $INSTALL_DIR"
 
-# Download and install
+# Download and extract
 TEMP_DIR=$(mktemp -d)
 cd "$TEMP_DIR"
 
 echo "⬇️ Downloading Google Cloud CLI..."
 curl --proto '=https' --tlsv1.2 -sSf "https://dl.google.com/dl/cloudsdk/channels/rapid/downloads/google-cloud-cli-linux-${ARCH_NAME}.tar.gz" -o google-cloud-cli.tar.gz
 
-echo "📦 Installing Google Cloud CLI..."
+echo "📦 Extracting Google Cloud CLI..."
 tar -xzf google-cloud-cli.tar.gz
 
-echo "Installing Google Cloud CLI to $INSTALL_DIR..."
+echo "🔧 Installing Google Cloud CLI to $INSTALL_DIR..."
 
-# Create installation directory
-mkdir -p "$INSTALL_DIR"
+# Handle installation based on user permissions
+if [ "$(id -u)" -eq 0 ]; then
+    echo "🔧 Running as root - using temporary user for installation..."
 
-# Copy the SDK
-cp -r google-cloud-sdk/* "$INSTALL_DIR/"
+    # Create a temporary user for installation
+    TEMP_USER="gcloud_installer_$$"
+    useradd -m -s /bin/bash "$TEMP_USER" || {
+        echo "⚠️ Could not create temporary user, trying with existing user..."
+        TEMP_USER="nobody"
+    }
 
-# Set up the installation manually instead of using the problematic installer script
-echo "🔧 Setting up Google Cloud CLI manually..."
+    # Set up the SDK in the temporary user's home
+    TEMP_INSTALL_DIR="/home/$TEMP_USER/google-cloud-sdk"
+    cp -r google-cloud-sdk "$TEMP_INSTALL_DIR"
+    chown -R "$TEMP_USER:$TEMP_USER" "$TEMP_INSTALL_DIR"
 
-# Remove any file at $INSTALL_DIR/properties before creating the directory
-if [ -f "$INSTALL_DIR/properties" ]; then
-    rm -f "$INSTALL_DIR/properties"
+    # Run the installer as the temporary user
+    echo "🔧 Running official installer script as $TEMP_USER..."
+    su "$TEMP_USER" -c "cd '$TEMP_INSTALL_DIR' && ./install.sh --quiet --usage-reporting=false --path-update=false --command-completion=false --skip-diagnostics" || {
+        echo "⚠️ Installer failed, trying alternative approach..."
+    }
+
+    # Move the installed SDK to the final location
+    if [ -d "$TEMP_INSTALL_DIR" ]; then
+        mkdir -p "$(dirname "$INSTALL_DIR")"
+        rm -rf "$INSTALL_DIR" 2>/dev/null || true
+        mv "$TEMP_INSTALL_DIR" "$INSTALL_DIR"
+        chown -R root:root "$INSTALL_DIR"
+    fi
+
+    # Clean up temporary user
+    if [ "$TEMP_USER" != "nobody" ]; then
+        userdel -r "$TEMP_USER" 2>/dev/null || true
+    fi
+
+else
+    echo "🔧 Running as non-root user - using standard installation..."
+
+    # Set up the SDK in the current user's home
+    TEMP_INSTALL_DIR="$HOME/google-cloud-sdk"
+    cp -r google-cloud-sdk "$TEMP_INSTALL_DIR"
+
+    # Run the installer script
+    echo "🔧 Running official installer script..."
+    cd "$TEMP_INSTALL_DIR"
+    ./install.sh --quiet --usage-reporting=false --path-update=false --command-completion=false --skip-diagnostics || {
+        echo "⚠️ Installer failed, trying alternative approach..."
+    }
+
+    # Move to final location
+    if [ -d "$TEMP_INSTALL_DIR" ]; then
+        mkdir -p "$(dirname "$INSTALL_DIR")"
+        rm -rf "$INSTALL_DIR" 2>/dev/null || true
+        mv "$TEMP_INSTALL_DIR" "$INSTALL_DIR"
+    fi
 fi
-
-# Create the properties directory
-PROPERTIES_DIR="$INSTALL_DIR/properties"
-mkdir -p "$PROPERTIES_DIR"
-
-# Create a basic properties file
-cat > "$PROPERTIES_DIR/core.json" << 'EOF'
-{
-  "disable_usage_reporting": true,
-  "disable_updater": true
-}
-EOF
 
 # Create symlinks
 echo "🔗 Creating symlinks..."
@@ -207,13 +238,16 @@ if [ -f "$INSTALL_DIR/completion.bash.inc" ]; then
     fi
 fi
 
-# Set up PATH if not already set
+# Set up PATH and environment variables
 if [ "$(id -u)" -eq 0 ]; then
     # For root, create a profile.d script
     PROFILE_SCRIPT="/etc/profile.d/google-cloud-sdk.sh"
     cat > "$PROFILE_SCRIPT" << EOF
 #!/bin/sh
 export PATH="$INSTALL_DIR/bin:\$PATH"
+export CLOUDSDK_ROOT="$INSTALL_DIR"
+export CLOUDSDK_ROOT_DIR="$INSTALL_DIR"
+export CLOUDSDK_PYTHON="$INSTALL_DIR/platform/bundledpythonunix/bin/python3"
 EOF
     chmod +x "$PROFILE_SCRIPT"
 else
@@ -222,6 +256,9 @@ else
         echo "" >> "$BASHRC_FILE"
         echo "# Google Cloud SDK PATH" >> "$BASHRC_FILE"
         echo "export PATH=\"$INSTALL_DIR/bin:\$PATH\"" >> "$BASHRC_FILE"
+        echo "export CLOUDSDK_ROOT=\"$INSTALL_DIR\"" >> "$BASHRC_FILE"
+        echo "export CLOUDSDK_ROOT_DIR=\"$INSTALL_DIR\"" >> "$BASHRC_FILE"
+        echo "export CLOUDSDK_PYTHON=\"$INSTALL_DIR/platform/bundledpythonunix/bin/python3\"" >> "$BASHRC_FILE"
     fi
 fi
 
@@ -238,6 +275,9 @@ else
     echo "❌ ERROR: 'gcloud' command not found in PATH"
     echo "Trying to add to PATH manually..."
     export PATH="$INSTALL_DIR/bin:$PATH"
+    export CLOUDSDK_ROOT="$INSTALL_DIR"
+    export CLOUDSDK_ROOT_DIR="$INSTALL_DIR"
+    export CLOUDSDK_PYTHON="$INSTALL_DIR/platform/bundledpythonunix/bin/python3"
     if command -v gcloud >/dev/null 2>&1; then
         echo "✅ Google Cloud CLI found after PATH adjustment."
         gcloud version
@@ -249,6 +289,9 @@ fi
 
 # Initialize gcloud (non-interactive)
 echo "🔧 Initializing Google Cloud CLI..."
+export CLOUDSDK_ROOT="$INSTALL_DIR"
+export CLOUDSDK_ROOT_DIR="$INSTALL_DIR"
+export CLOUDSDK_PYTHON="$INSTALL_DIR/platform/bundledpythonunix/bin/python3"
 "$INSTALL_DIR/bin/gcloud" init --skip-diagnostics --quiet || {
     echo "⚠️ Warning: Could not initialize gcloud automatically. You may need to run 'gcloud init' manually."
 }
