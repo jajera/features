@@ -15,6 +15,7 @@ jobs:
         features:
           - ag
           - amazon-q-cli
+          - gcloud-cli
           - zip
         baseImage:
           - debian:latest
