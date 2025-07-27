@@ -15,6 +15,7 @@ jobs:
         features:
           - ag
           - amazon-q-cli
+          - aws-sam-cli
           - gcloud-cli
           - zip
         baseImage:
@@ -38,6 +39,8 @@ jobs:
         features:
           - ag
           - amazon-q-cli
+          - aws-sam-cli
+          - gcloud-cli
           - zip
     steps:
       - uses: actions/checkout@v4
